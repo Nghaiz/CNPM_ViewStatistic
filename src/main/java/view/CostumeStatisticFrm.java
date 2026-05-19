@@ -4,6 +4,20 @@
  */
 package view;
 
+import dao.CostumeStatisticDAO;
+import java.awt.Color;
+import java.text.NumberFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import javax.swing.BorderFactory;
+import javax.swing.JOptionPane;
+import javax.swing.table.DefaultTableModel;
+import com.github.lgooddatepicker.components.DatePicker;
+import model.CostumeStatistic;
 import model.User;
 
 /**
@@ -13,13 +27,21 @@ import model.User;
 public class CostumeStatisticFrm extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CostumeStatisticFrm.class.getName());
+    private final User user;
+    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
      * Creates new form CostumeStatisticFrm
      */
     public CostumeStatisticFrm(User user) {
         initComponents();
+        this.user = user;
         this.setLocationRelativeTo(null);
+        configureDatePickers();
+        lblErrorStartDate.setForeground(Color.RED);
+        lblErrorEndDate.setForeground(Color.RED);
+        clearErrors();
     }
 
     /**
@@ -58,7 +80,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
 
             },
             new String [] {
-                "STT", "Mã trang phục", "Tên trang phục", "Kiểu", "Chủng loại", "Số lượng mượn", "Tổng số tiền"
+                "STT", "Mã trang phục", "Tên trang phục", "Kiểu", "Chủng loại", "Tổng số lượt mượn", "Tổng tiền thu"
             }
         ) {
             boolean[] canEdit = new boolean [] {
@@ -93,13 +115,13 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
                         .addGap(18, 18, 18)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                             .addComponent(lblErrorStartDate, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(txtEndDate, javax.swing.GroupLayout.DEFAULT_SIZE, 180, Short.MAX_VALUE))
+                            .addComponent(txtStartDate, javax.swing.GroupLayout.DEFAULT_SIZE, 180, Short.MAX_VALUE))
                         .addGap(18, 18, 18)
                         .addComponent(jLabel2)
                         .addGap(18, 18, 18)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                             .addComponent(lblErrorEndDate, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(txtStartDate, javax.swing.GroupLayout.DEFAULT_SIZE, 180, Short.MAX_VALUE))
+                            .addComponent(txtEndDate, javax.swing.GroupLayout.DEFAULT_SIZE, 180, Short.MAX_VALUE))
                         .addGap(18, 18, 18)
                         .addComponent(btnSearch, javax.swing.GroupLayout.PREFERRED_SIZE, 115, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap())
@@ -127,8 +149,95 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSearchActionPerformed
-        // TODO add your handling code here:
+        clearErrors();
+
+        LocalDate startLocalDate = txtStartDate.getDate();
+        LocalDate endLocalDate = txtEndDate.getDate();
+        if (!isValidDateRange(startLocalDate, endLocalDate)) {
+            return;
+        }
+
+        java.util.Date startDate = java.util.Date.from(startLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        java.util.Date endDate = java.util.Date.from(endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+        CostumeStatisticDAO costumeStatisticDAO = new CostumeStatisticDAO();
+        List<CostumeStatistic> costumeStatistics = costumeStatisticDAO.getCostumeStatistic(startDate, endDate);
+        showCostumeStatistics(costumeStatistics);
+        updateStatisticTitle(startLocalDate, endLocalDate);
+
+        if (costumeStatistics.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Không có dữ liệu thống kê trong khoảng thời gian đã chọn.");
+        }
     }//GEN-LAST:event_btnSearchActionPerformed
+
+    private void clearErrors() {
+        lblErrorStartDate.setText(" ");
+        lblErrorEndDate.setText(" ");
+    }
+
+    private boolean isValidDateRange(LocalDate startDate, LocalDate endDate) {
+        boolean valid = true;
+        String startDateText = txtStartDate.getText().trim();
+        String endDateText = txtEndDate.getText().trim();
+
+        if (startDateText.isEmpty()) {
+            lblErrorStartDate.setText("Vui lòng chọn ngày bắt đầu");
+            valid = false;
+        } else if (startDate == null || !txtStartDate.isTextFieldValid()) {
+            lblErrorStartDate.setText("Ngày bắt đầu phải có dạng dd/MM/yyyy");
+            valid = false;
+        }
+        if (endDateText.isEmpty()) {
+            lblErrorEndDate.setText("Vui lòng chọn ngày kết thúc");
+            valid = false;
+        } else if (endDate == null || !txtEndDate.isTextFieldValid()) {
+            lblErrorEndDate.setText("Ngày kết thúc phải có dạng dd/MM/yyyy");
+            valid = false;
+        }
+        if (valid && startDate.isAfter(endDate)) {
+            lblErrorStartDate.setText("Ngày bắt đầu không được sau ngày kết thúc");
+            lblErrorEndDate.setText("Ngày kết thúc không được trước ngày bắt đầu");
+            valid = false;
+        }
+        return valid;
+    }
+
+    private void showCostumeStatistics(List<CostumeStatistic> costumeStatistics) {
+        DefaultTableModel tableModel = (DefaultTableModel) tblCostumeStat.getModel();
+        tableModel.setRowCount(0);
+        for (int i = 0; i < costumeStatistics.size(); i++) {
+            CostumeStatistic costumeStatistic = costumeStatistics.get(i);
+            tableModel.addRow(new Object[]{
+                    i + 1,
+                    costumeStatistic.getId(),
+                    costumeStatistic.getName(),
+                    costumeStatistic.getType(),
+                    costumeStatistic.getCategory(),
+                    costumeStatistic.getTotalRentalTimes(),
+                    currencyFormat.format(costumeStatistic.getTotalRevenue())
+            });
+        }
+    }
+
+    private void configureDatePickers() {
+        configureDatePicker(txtStartDate);
+        configureDatePicker(txtEndDate);
+    }
+
+    private void configureDatePicker(DatePicker datePicker) {
+        ArrayList<DateTimeFormatter> parsingFormats = new ArrayList<>();
+        parsingFormats.add(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        parsingFormats.add(DateTimeFormatter.ofPattern("d/M/yyyy"));
+
+        datePicker.getSettings().setFormatForDatesCommonEra("dd/MM/yyyy");
+        datePicker.getSettings().setFormatsForParsing(parsingFormats);
+    }
+
+    private void updateStatisticTitle(LocalDate startDate, LocalDate endDate) {
+        String title = "Thống kê từ " + startDate.format(dateFormatter) + " đến " + endDate.format(dateFormatter);
+        jScrollPane1.setBorder(BorderFactory.createTitledBorder(BorderFactory.createTitledBorder(""), title));
+        jScrollPane1.repaint();
+    }
 
     /**
      * @param args the command line arguments
