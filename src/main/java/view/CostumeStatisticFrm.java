@@ -158,7 +158,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         }
 
         java.util.Date startDate = java.util.Date.from(startLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
-        java.util.Date endDate = java.util.Date.from(endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
+        java.util.Date endDate = java.util.Date.from(endLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
 
         CostumeStatisticDAO costumeStatisticDAO = new CostumeStatisticDAO();
         List<CostumeStatistic> costumeStatistics = costumeStatisticDAO.getCostumeStatistic(startDate, endDate);
