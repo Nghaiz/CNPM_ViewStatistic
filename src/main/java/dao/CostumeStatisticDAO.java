@@ -15,27 +15,45 @@ public class CostumeStatisticDAO extends DAO {
         List<CostumeStatistic> result = new ArrayList<>();
         String sql = """
                 SELECT c.id, c.name, c.type, c.category,
-                IFNULL(cs.totalRentalTimes, 0) AS totalRentalTimes,
-                IFNULL(cs.totalRevenue, 0) AS totalRevenue
+                    IFNULL(cs.totalRentalTimes, 0) AS totalRentalTimes,
+                    IFNULL(cs.totalRevenue, 0) AS totalRevenue
                 FROM tblCostume c
                 INNER JOIN (
-                    SELECT rented.costumeId,
-                        SUM(CASE WHEN rented.rentalDays > 0 THEN rented.rentalQuantity ELSE 0 END) AS totalRentalTimes,
-                        SUM(rented.rentalDays * rented.rentalPrice * rented.rentalQuantity) AS totalRevenue
+                    SELECT charged.costumeId,
+                        SUM(charged.quantity) AS totalRentalTimes,
+                        SUM(charged.amount) AS totalRevenue
                     FROM (
-                        SELECT rc.id, rc.costumeId, rc.rentalQuantity, rc.rentalPrice,
+                        SELECT rc.costumeId,
+                            ret.returnedQuantity AS quantity,
                             GREATEST(DATEDIFF(
-                                LEAST(DATE(COALESCE(MAX(rb.returnedAt), ?)), DATE(?)),
+                                LEAST(DATE(rtb.returnedAt), DATE(?)),
                                 GREATEST(DATE(rc.rentedAt), DATE(?))
-                            ) + 1, 0) AS rentalDays
+                            ) + 1, 0) * rc.rentalPrice * ret.returnedQuantity AS amount
                         FROM tblRentedCostume rc
-                        LEFT JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
-                        LEFT JOIN tblReturnBill rb ON rb.id = ret.returnBillId
+                        INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
+                        INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
                         WHERE DATE(rc.rentedAt) <= DATE(?)
-                        GROUP BY rc.id, rc.costumeId, rc.rentalQuantity, rc.rentalPrice, rc.rentedAt
-                        HAVING DATE(COALESCE(MAX(rb.returnedAt), ?)) >= DATE(?)
-                    ) rented
-                    GROUP BY rented.costumeId
+                            AND DATE(rtb.returnedAt) >= DATE(?)
+
+                        UNION ALL
+
+                        SELECT rc.costumeId,
+                            rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) AS quantity,
+                            GREATEST(DATEDIFF(
+                                DATE(?),
+                                GREATEST(DATE(rc.rentedAt), DATE(?))
+                            ) + 1, 0) * rc.rentalPrice * (rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0)) AS amount
+                        FROM tblRentedCostume rc
+                        LEFT JOIN (
+                            SELECT rentedCostumeId, SUM(returnedQuantity) AS totalReturnedQuantity
+                            FROM tblReturnedCostume
+                            GROUP BY rentedCostumeId
+                        ) returned ON returned.rentedCostumeId = rc.id
+                        WHERE rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) > 0
+                            AND DATE(rc.rentedAt) <= DATE(?)
+                    ) charged
+                    WHERE charged.amount > 0
+                    GROUP BY charged.costumeId
                 ) cs ON cs.costumeId = c.id
                 ORDER BY totalRentalTimes DESC, totalRevenue DESC, c.name ASC
                 """;
@@ -46,11 +64,12 @@ public class CostumeStatisticDAO extends DAO {
             java.sql.Date endSqlDate = new java.sql.Date(endDate.getTime());
 
             ps.setDate(1, endSqlDate);
-            ps.setDate(2, endSqlDate);
-            ps.setDate(3, startSqlDate);
-            ps.setDate(4, endSqlDate);
+            ps.setDate(2, startSqlDate);
+            ps.setDate(3, endSqlDate);
+            ps.setDate(4, startSqlDate);
             ps.setDate(5, endSqlDate);
             ps.setDate(6, startSqlDate);
+            ps.setDate(7, endSqlDate);
 
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {

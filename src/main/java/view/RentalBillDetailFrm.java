@@ -4,6 +4,26 @@
  */
 package view;
 
+import dao.RentalBillDAO;
+import dao.ReturnedCostumeDAO;
+import model.Collateral;
+import model.Costume;
+import model.CostumeStatistic;
+import model.RentalBill;
+import model.RentalCollateral;
+import model.RentedCostume;
+import model.ReturnedCostume;
+import model.User;
+
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import javax.swing.JOptionPane;
+import javax.swing.table.DefaultTableModel;
+
 /**
  *
  * @author Nghaiz
@@ -11,12 +31,52 @@ package view;
 public class RentalBillDetailFrm extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(RentalBillDetailFrm.class.getName());
+    private User user;
+    private int rentalBillId;
+    private Date startDate;
+    private Date endDate;
+    private CostumeStatistic costumeStatistic;
+    private CostumeStatisticSearchState costumeStatisticSearchState;
+    private RentalBill rentalBill;
+    private List<ReturnedCostume> returnedCostumes = new ArrayList<>();
+    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
      * Creates new form RentalBillDetailFrm
      */
     public RentalBillDetailFrm() {
         initComponents();
+        this.setLocationRelativeTo(null);
+        jButton1.addActionListener(this::btnBackActionPerformed);
+    }
+
+    public RentalBillDetailFrm(
+            User user,
+            int rentalBillId,
+            Date startDate,
+            Date endDate,
+            CostumeStatistic costumeStatistic
+    ) {
+        this(user, rentalBillId, startDate, endDate, costumeStatistic, null);
+    }
+
+    public RentalBillDetailFrm(
+            User user,
+            int rentalBillId,
+            Date startDate,
+            Date endDate,
+            CostumeStatistic costumeStatistic,
+            CostumeStatisticSearchState costumeStatisticSearchState
+    ) {
+        this();
+        this.user = user;
+        this.rentalBillId = rentalBillId;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.costumeStatistic = costumeStatistic;
+        this.costumeStatisticSearchState = costumeStatisticSearchState;
+        loadRentalBillDetail();
     }
 
     /**
@@ -92,7 +152,7 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
 
             },
             new String [] {
-                "Mã trang phục", "Tên trang phục", "Kiểu trang phục", "Chủng loại trang phục", "Số lượng", "Giá mượn", "Ngày mượn", "Ngày hẹn trả", "Ngày khách trả", "Tổng tiền tính tới ngày"
+                "Mã trang phục", "Tên trang phục", "Kiểu trang phục", "Chủng loại trang phục", "Số lượng", "Giá mượn", "Ngày mượn", "Ngày hẹn trả", "Ngày khách trả", "Tổng số tiền"
             }
         ) {
             boolean[] canEdit = new boolean [] {
@@ -202,6 +262,101 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void loadRentalBillDetail() {
+        RentalBillDAO rentalBillDAO = new RentalBillDAO();
+        rentalBill = rentalBillDAO.getRentalBillDetail(rentalBillId);
+        if (rentalBill == null) {
+            JOptionPane.showMessageDialog(this, "Không tìm thấy thông tin phiếu mượn.");
+            return;
+        }
+
+        ReturnedCostumeDAO returnedCostumeDAO = new ReturnedCostumeDAO();
+        returnedCostumes = returnedCostumeDAO.getReturnedCostumesByRentalBill(rentalBillId, startDate, endDate);
+
+        showRentalBillInfo();
+        showReturnedCostumes();
+        showRentalCollaterals();
+        showTotals();
+    }
+
+    private void showRentalBillInfo() {
+        jLabel2.setText(String.valueOf(rentalBill.getId()));
+        jLabel4.setText(rentalBill.getClient() == null ? "" : String.valueOf(rentalBill.getClient().getId()));
+        jLabel6.setText(rentalBill.getClient() == null ? "" : rentalBill.getClient().getFullname());
+        jLabel8.setText(rentalBill.getCreatedAt() == null ? "" : rentalBill.getCreatedAt().format(dateFormatter));
+        jLabel10.setText(currencyFormat.format(rentalBill.getSaleoff()));
+        jLabel12.setText(rentalBill.getNote() == null ? "" : rentalBill.getNote());
+    }
+
+    private void showReturnedCostumes() {
+        DefaultTableModel tableModel = (DefaultTableModel) jTable1.getModel();
+        tableModel.setRowCount(0);
+
+        for (ReturnedCostume returnedCostume : returnedCostumes) {
+            RentedCostume rentedCostume = returnedCostume.getRentedCostume();
+            Costume costume = rentedCostume == null ? null : rentedCostume.getCostume();
+            tableModel.addRow(new Object[]{
+                    costume == null ? "" : costume.getId(),
+                    costume == null ? "" : costume.getName(),
+                    costume == null ? "" : costume.getType(),
+                    costume == null ? "" : costume.getCategory(),
+                    returnedCostume.getReturnedQuantity(),
+                    rentedCostume == null ? "" : currencyFormat.format(rentedCostume.getRentalPrice()),
+                    rentedCostume == null || rentedCostume.getRentedAt() == null
+                            ? ""
+                            : rentedCostume.getRentedAt().format(dateFormatter),
+                    rentedCostume == null || rentedCostume.getDateToReturn() == null
+                            ? ""
+                            : rentedCostume.getDateToReturn().format(dateFormatter),
+                    returnedCostume.getReturnedAt() == null
+                            ? "Chưa trả"
+                            : returnedCostume.getReturnedAt().format(dateFormatter),
+                    currencyFormat.format(returnedCostume.getTotalAmount())
+            });
+        }
+    }
+
+    private void showRentalCollaterals() {
+        DefaultTableModel tableModel = (DefaultTableModel) jTable2.getModel();
+        tableModel.setRowCount(0);
+
+        List<RentalCollateral> rentalCollaterals = rentalBill.getListRentalCollateral();
+        for (int i = 0; i < rentalCollaterals.size(); i++) {
+            RentalCollateral rentalCollateral = rentalCollaterals.get(i);
+            Collateral collateral = rentalCollateral.getCollateral();
+            tableModel.addRow(new Object[]{
+                    i + 1,
+                    collateral == null ? "" : collateral.getName(),
+                    currencyFormat.format(rentalCollateral.getValue())
+            });
+        }
+    }
+
+    private void showTotals() {
+        int totalQuantity = 0;
+        float totalAmount = 0;
+        for (ReturnedCostume returnedCostume : returnedCostumes) {
+            totalQuantity += returnedCostume.getReturnedQuantity();
+            totalAmount += returnedCostume.getTotalAmount();
+        }
+        jLabel14.setText(String.valueOf(totalQuantity));
+        jLabel16.setText(currencyFormat.format(totalAmount));
+    }
+
+    private void btnBackActionPerformed(java.awt.event.ActionEvent evt) {
+        if (user != null && costumeStatistic != null && startDate != null && endDate != null) {
+            RentalBillStatisticFrm rentalBillStatisticFrm = new RentalBillStatisticFrm(
+                    user,
+                    costumeStatistic,
+                    startDate,
+                    endDate,
+                    costumeStatisticSearchState
+            );
+            rentalBillStatisticFrm.setVisible(true);
+        }
+        this.dispose();
+    }
 
     /**
      * @param args the command line arguments

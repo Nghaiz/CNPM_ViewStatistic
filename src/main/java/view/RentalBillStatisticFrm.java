@@ -4,6 +4,23 @@
  */
 package view;
 
+import dao.RentalBillDAO;
+import model.CostumeStatistic;
+import model.RentalBill;
+import model.User;
+
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import javax.swing.BorderFactory;
+import javax.swing.JOptionPane;
+import javax.swing.table.DefaultTableModel;
+
 /**
  *
  * @author Nghaiz
@@ -11,12 +28,43 @@ package view;
 public class RentalBillStatisticFrm extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(RentalBillStatisticFrm.class.getName());
+    private User user;
+    private CostumeStatistic costumeStatistic;
+    private Date startDate;
+    private Date endDate;
+    private CostumeStatisticSearchState costumeStatisticSearchState;
+    private List<RentalBill> rentalBills = new ArrayList<>();
+    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
      * Creates new form RentalBillStatisticFrm
      */
     public RentalBillStatisticFrm() {
         initComponents();
+        this.setLocationRelativeTo(null);
+        configureRentalBillTableClick();
+        jButton1.addActionListener(this::btnBackActionPerformed);
+    }
+
+    public RentalBillStatisticFrm(User user, CostumeStatistic costumeStatistic, Date startDate, Date endDate) {
+        this(user, costumeStatistic, startDate, endDate, null);
+    }
+
+    public RentalBillStatisticFrm(
+            User user,
+            CostumeStatistic costumeStatistic,
+            Date startDate,
+            Date endDate,
+            CostumeStatisticSearchState costumeStatisticSearchState
+    ) {
+        this();
+        this.user = user;
+        this.costumeStatistic = costumeStatistic;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.costumeStatisticSearchState = costumeStatisticSearchState;
+        loadRentalBills();
     }
 
     /**
@@ -113,6 +161,93 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void loadRentalBills() {
+        if (costumeStatistic == null || startDate == null || endDate == null) {
+            return;
+        }
+
+        jLabel4.setText(costumeStatistic.getName());
+        jLabel2.setText(currencyFormat.format(costumeStatistic.getTotalRevenue()));
+        updateStatisticTitle();
+
+        RentalBillDAO rentalBillDAO = new RentalBillDAO();
+        rentalBills = rentalBillDAO.getBillDetailByCostume(costumeStatistic.getId(), startDate, endDate);
+        showRentalBills();
+
+        if (rentalBills.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Không có phiếu mượn trang phục này trong khoảng thời gian đã chọn.");
+        }
+    }
+
+    private void showRentalBills() {
+        DefaultTableModel tableModel = (DefaultTableModel) jTable1.getModel();
+        tableModel.setRowCount(0);
+        for (int i = 0; i < rentalBills.size(); i++) {
+            RentalBill rentalBill = rentalBills.get(i);
+            tableModel.addRow(new Object[]{
+                    i + 1,
+                    rentalBill.getId(),
+                    rentalBill.getClient() == null ? "" : rentalBill.getClient().getFullname(),
+                    rentalBill.getTotalQuantity(),
+                    rentalBill.getCreatedAt() == null ? "" : rentalBill.getCreatedAt().format(dateFormatter),
+                    currencyFormat.format(rentalBill.getTotalRevenue())
+            });
+        }
+    }
+
+    private void configureRentalBillTableClick() {
+        jTable1.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent evt) {
+                if (evt.getClickCount() == 1) {
+                    openSelectedRentalBill();
+                }
+            }
+        });
+    }
+
+    private void openSelectedRentalBill() {
+        int selectedRow = jTable1.getSelectedRow();
+        if (selectedRow < 0 || startDate == null || endDate == null) {
+            return;
+        }
+
+        int modelRow = jTable1.convertRowIndexToModel(selectedRow);
+        if (modelRow < 0 || modelRow >= rentalBills.size()) {
+            return;
+        }
+
+        RentalBillDetailFrm rentalBillDetailFrm = new RentalBillDetailFrm(
+                user,
+                rentalBills.get(modelRow).getId(),
+                startDate,
+                endDate,
+                costumeStatistic,
+                costumeStatisticSearchState
+        );
+        rentalBillDetailFrm.setVisible(true);
+        this.dispose();
+    }
+
+    private void btnBackActionPerformed(java.awt.event.ActionEvent evt) {
+        if (user != null) {
+            CostumeStatisticFrm costumeStatisticFrm = costumeStatisticSearchState == null
+                    ? new CostumeStatisticFrm(user)
+                    : new CostumeStatisticFrm(user, costumeStatisticSearchState);
+            costumeStatisticFrm.setVisible(true);
+        }
+        this.dispose();
+    }
+
+    private void updateStatisticTitle() {
+        String title = "Danh sách phiếu mượn từ "
+                + startDate.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(dateFormatter)
+                + " đến "
+                + endDate.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(dateFormatter);
+        jScrollPane1.setBorder(BorderFactory.createTitledBorder(BorderFactory.createTitledBorder(""), title));
+        jScrollPane1.repaint();
+    }
 
     /**
      * @param args the command line arguments
