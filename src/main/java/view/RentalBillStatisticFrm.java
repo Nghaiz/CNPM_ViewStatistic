@@ -54,13 +54,7 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         this(user, costumeStatistic, startDate, endDate, null);
     }
 
-    public RentalBillStatisticFrm(
-            User user,
-            CostumeStatistic costumeStatistic,
-            Date startDate,
-            Date endDate,
-            CostumeStatisticSearchState costumeStatisticSearchState
-    ) {
+    public RentalBillStatisticFrm(User user, CostumeStatistic costumeStatistic, Date startDate, Date endDate, CostumeStatisticSearchState costumeStatisticSearchState) {
         this();
         this.user = user;
         this.costumeStatistic = costumeStatistic;

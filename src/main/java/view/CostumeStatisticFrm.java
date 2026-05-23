@@ -33,8 +33,8 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private List<CostumeStatistic> listCostume = new ArrayList<>();
-    private java.util.Date currentStartDate;
-    private java.util.Date currentEndDate;
+    private java.util.Date startDate;
+    private java.util.Date endDate;
 
     /**
      * Creates new form CostumeStatisticFrm
@@ -168,15 +168,13 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
             return;
         }
 
-        java.util.Date startDate = java.util.Date.from(startLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
-        java.util.Date endDate = java.util.Date.from(endLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        startDate = java.util.Date.from(startLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        endDate = java.util.Date.from(endLocalDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
 
         CostumeStatisticDAO costumeStatisticDAO = new CostumeStatisticDAO();
-        currentStartDate = startDate;
-        currentEndDate = endDate;
         listCostume = costumeStatisticDAO.getCostumeStatistic(startDate, endDate);
         showCostumeStatistics(listCostume);
-        updateStatisticTitle(startLocalDate, endLocalDate);
+        updateTitle(startLocalDate, endLocalDate);
 
         if (listCostume.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Không có dữ liệu thống kê trong khoảng thời gian đã chọn.");
@@ -246,7 +244,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         datePicker.getSettings().setFormatsForParsing(parsingFormats);
     }
 
-    private void updateStatisticTitle(LocalDate startDate, LocalDate endDate) {
+    private void updateTitle(LocalDate startDate, LocalDate endDate) {
         String title = "Thống kê từ " + startDate.format(dateFormatter) + " đến " + endDate.format(dateFormatter);
         jScrollPane1.setBorder(BorderFactory.createTitledBorder(BorderFactory.createTitledBorder(""), title));
         jScrollPane1.repaint();
@@ -265,7 +263,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
 
     private void openSelectedCostumeStatistic() {
         int selectedRow = tblCostumeStat.getSelectedRow();
-        if (selectedRow < 0 || currentStartDate == null || currentEndDate == null) {
+        if (selectedRow < 0 || startDate == null || endDate == null) {
             return;
         }
 
@@ -277,8 +275,8 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         RentalBillStatisticFrm rentalBillStatisticFrm = new RentalBillStatisticFrm(
                 user,
                 listCostume.get(modelRow),
-                currentStartDate,
-                currentEndDate,
+                startDate,
+                endDate,
                 createSearchState()
         );
         rentalBillStatisticFrm.setVisible(true);
@@ -290,20 +288,20 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
             return;
         }
 
-        currentStartDate = searchState.getStartDate();
-        currentEndDate = searchState.getEndDate();
-        LocalDate startLocalDate = currentStartDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-        LocalDate endLocalDate = currentEndDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        startDate = searchState.getStartDate();
+        endDate = searchState.getEndDate();
+        LocalDate startLocalDate = startDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endLocalDate = endDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
 
         txtStartDate.setDate(startLocalDate);
         txtEndDate.setDate(endLocalDate);
         listCostume = new ArrayList<>(searchState.getCostumeStatistics());
         showCostumeStatistics(listCostume);
-        updateStatisticTitle(startLocalDate, endLocalDate);
+        updateTitle(startLocalDate, endLocalDate);
     }
 
     private CostumeStatisticSearchState createSearchState() {
-        return new CostumeStatisticSearchState(currentStartDate, currentEndDate, listCostume);
+        return new CostumeStatisticSearchState(startDate, endDate, listCostume);
     }
 
     /**
