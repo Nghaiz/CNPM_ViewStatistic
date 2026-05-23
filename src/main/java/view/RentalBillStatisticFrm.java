@@ -5,8 +5,10 @@
 package view;
 
 import dao.RentalBillDAO;
+import dao.ReturnedCostumeDAO;
 import model.CostumeStatistic;
 import model.RentalBill;
+import model.ReturnedCostume;
 import model.User;
 
 import java.awt.event.MouseAdapter;
@@ -34,6 +36,7 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
     private Date endDate;
     private CostumeStatisticSearchState costumeStatisticSearchState;
     private List<RentalBill> rentalBills = new ArrayList<>();
+    private List<List<ReturnedCostume>> returnedCostumesByBill = new ArrayList<>();
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -173,6 +176,8 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
 
         RentalBillDAO rentalBillDAO = new RentalBillDAO();
         rentalBills = rentalBillDAO.getBillDetailByCostume(costumeStatistic.getId(), startDate, endDate);
+        ReturnedCostumeDAO returnedCostumeDAO = new ReturnedCostumeDAO();
+        returnedCostumesByBill = returnedCostumeDAO.getReturnedCostume(rentalBills, startDate, endDate);
         showRentalBills();
 
         if (rentalBills.isEmpty()) {
@@ -218,9 +223,13 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
             return;
         }
 
+        List<ReturnedCostume> returnedCostumes = modelRow < returnedCostumesByBill.size()
+                ? returnedCostumesByBill.get(modelRow)
+                : new ArrayList<>();
         RentalBillDetailFrm rentalBillDetailFrm = new RentalBillDetailFrm(
                 user,
-                rentalBills.get(modelRow).getId(),
+                rentalBills.get(modelRow),
+                returnedCostumes,
                 startDate,
                 endDate,
                 costumeStatistic,

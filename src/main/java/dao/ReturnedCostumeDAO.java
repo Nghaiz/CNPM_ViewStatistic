@@ -1,6 +1,7 @@
 package dao;
 
 import model.Costume;
+import model.RentalBill;
 import model.RentedCostume;
 import model.ReturnedCostume;
 
@@ -17,14 +18,35 @@ public class ReturnedCostumeDAO extends DAO {
         super();
     }
 
-    public List<ReturnedCostume> getReturnedCostumesByRentalBill(
+    public List<List<ReturnedCostume>> getReturnedCostume(
+            List<RentalBill> listRentalBill,
+            java.util.Date startDate,
+            java.util.Date endDate
+    ) {
+        List<List<ReturnedCostume>> result = new ArrayList<>();
+        if (listRentalBill == null) {
+            return result;
+        }
+
+        for (RentalBill rentalBill : listRentalBill) {
+            if (rentalBill == null) {
+                result.add(new ArrayList<>());
+            } else {
+                result.add(getReturnedCostumeByRentalBill(rentalBill.getId(), startDate, endDate));
+            }
+        }
+        return result;
+    }
+
+    private List<ReturnedCostume> getReturnedCostumeByRentalBill(
             int rentalBillId,
             java.util.Date startDate,
             java.util.Date endDate
     ) {
         List<ReturnedCostume> result = new ArrayList<>();
         String sql = """
-                SELECT *
+                SELECT charged.*,
+                    charged.rentalDays * charged.rentalPrice * charged.returnedQuantity AS amount
                 FROM (
                     SELECT ret.id AS returnedCostumeId,
                         ret.returnedQuantity,
@@ -43,7 +65,7 @@ public class ReturnedCostumeDAO extends DAO {
                         GREATEST(DATEDIFF(
                             LEAST(DATE(rtb.returnedAt), DATE(?)),
                             GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) * rc.rentalPrice * ret.returnedQuantity AS amount,
+                        ) + 1, 0) AS rentalDays,
                         0 AS sortOrder
                     FROM tblRentedCostume rc
                     INNER JOIN tblCostume c ON c.id = rc.costumeId
@@ -56,7 +78,7 @@ public class ReturnedCostumeDAO extends DAO {
                     UNION ALL
 
                     SELECT 0 AS returnedCostumeId,
-                        rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) AS returnedQuantity,
+                        rc.rentalQuantity - IFNULL(SUM(ret.returnedQuantity), 0) AS returnedQuantity,
                         NULL AS returnedAt,
                         rc.id AS rentedCostumeId,
                         rc.rentalPrice,
@@ -72,20 +94,19 @@ public class ReturnedCostumeDAO extends DAO {
                         GREATEST(DATEDIFF(
                             DATE(?),
                             GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) * rc.rentalPrice * (rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0)) AS amount,
+                        ) + 1, 0) AS rentalDays,
                         1 AS sortOrder
                     FROM tblRentedCostume rc
                     INNER JOIN tblCostume c ON c.id = rc.costumeId
-                    LEFT JOIN (
-                        SELECT rentedCostumeId, SUM(returnedQuantity) AS totalReturnedQuantity
-                        FROM tblReturnedCostume
-                        GROUP BY rentedCostumeId
-                    ) returned ON returned.rentedCostumeId = rc.id
+                    LEFT JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
                     WHERE rc.rentalBillId = ?
-                        AND rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) > 0
                         AND DATE(rc.rentedAt) <= DATE(?)
+                    GROUP BY rc.id, rc.rentalPrice, rc.rentalQuantity, rc.rentedAt, rc.dateToReturn,
+                        c.id, c.name, c.type, c.category, c.description, c.price
+                    HAVING returnedQuantity > 0
                 ) charged
-                WHERE charged.amount > 0
+                WHERE charged.rentalDays > 0
+                    AND charged.returnedQuantity > 0
                 ORDER BY charged.rentedCostumeId ASC, charged.sortOrder ASC, charged.returnedAt ASC
                 """;
 

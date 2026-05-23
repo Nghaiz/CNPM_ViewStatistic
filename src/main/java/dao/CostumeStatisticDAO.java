@@ -2,59 +2,55 @@ package dao;
 
 import model.CostumeStatistic;
 
-import java.sql.*;
-import java.util.*;
-import java.util.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CostumeStatisticDAO extends DAO {
     public CostumeStatisticDAO() {
         super();
     }
 
-    public List<CostumeStatistic> getCostumeStatistic(Date startDate, Date endDate){
+    public List<CostumeStatistic> getCostumeStatistic(java.util.Date startDate, java.util.Date endDate) {
         List<CostumeStatistic> result = new ArrayList<>();
         String sql = """
                 SELECT c.id, c.name, c.type, c.category,
-                    IFNULL(cs.totalRentalTimes, 0) AS totalRentalTimes,
-                    IFNULL(cs.totalRevenue, 0) AS totalRevenue
+                    SUM(charged.quantity) AS totalRentalTimes,
+                    SUM(charged.rentalDays * charged.rentalPrice * charged.quantity) AS totalRevenue
                 FROM tblCostume c
                 INNER JOIN (
-                    SELECT charged.costumeId,
-                        SUM(charged.quantity) AS totalRentalTimes,
-                        SUM(charged.amount) AS totalRevenue
-                    FROM (
-                        SELECT rc.costumeId,
-                            ret.returnedQuantity AS quantity,
-                            GREATEST(DATEDIFF(
-                                LEAST(DATE(rtb.returnedAt), DATE(?)),
-                                GREATEST(DATE(rc.rentedAt), DATE(?))
-                            ) + 1, 0) * rc.rentalPrice * ret.returnedQuantity AS amount
-                        FROM tblRentedCostume rc
-                        INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
-                        INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
-                        WHERE DATE(rc.rentedAt) <= DATE(?)
-                            AND DATE(rtb.returnedAt) >= DATE(?)
+                    SELECT rc.costumeId,
+                        ret.returnedQuantity AS quantity,
+                        rc.rentalPrice,
+                        GREATEST(DATEDIFF(
+                            LEAST(DATE(rtb.returnedAt), DATE(?)),
+                            GREATEST(DATE(rc.rentedAt), DATE(?))
+                        ) + 1, 0) AS rentalDays
+                    FROM tblRentedCostume rc
+                    INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
+                    INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
+                    WHERE DATE(rc.rentedAt) <= DATE(?)
+                        AND DATE(rtb.returnedAt) >= DATE(?)
 
-                        UNION ALL
+                    UNION ALL
 
-                        SELECT rc.costumeId,
-                            rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) AS quantity,
-                            GREATEST(DATEDIFF(
-                                DATE(?),
-                                GREATEST(DATE(rc.rentedAt), DATE(?))
-                            ) + 1, 0) * rc.rentalPrice * (rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0)) AS amount
-                        FROM tblRentedCostume rc
-                        LEFT JOIN (
-                            SELECT rentedCostumeId, SUM(returnedQuantity) AS totalReturnedQuantity
-                            FROM tblReturnedCostume
-                            GROUP BY rentedCostumeId
-                        ) returned ON returned.rentedCostumeId = rc.id
-                        WHERE rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) > 0
-                            AND DATE(rc.rentedAt) <= DATE(?)
-                    ) charged
-                    WHERE charged.amount > 0
-                    GROUP BY charged.costumeId
-                ) cs ON cs.costumeId = c.id
+                    SELECT rc.costumeId,
+                        rc.rentalQuantity - IFNULL(SUM(ret.returnedQuantity), 0) AS quantity,
+                        rc.rentalPrice,
+                        GREATEST(DATEDIFF(
+                            DATE(?),
+                            GREATEST(DATE(rc.rentedAt), DATE(?))
+                        ) + 1, 0) AS rentalDays
+                    FROM tblRentedCostume rc
+                    LEFT JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
+                    WHERE DATE(rc.rentedAt) <= DATE(?)
+                    GROUP BY rc.id, rc.costumeId, rc.rentalQuantity, rc.rentalPrice, rc.rentedAt
+                    HAVING quantity > 0
+                ) charged ON charged.costumeId = c.id
+                WHERE charged.rentalDays > 0
+                    AND charged.quantity > 0
+                GROUP BY c.id, c.name, c.type, c.category
                 ORDER BY totalRentalTimes DESC, totalRevenue DESC, c.name ASC
                 """;
 
@@ -73,18 +69,16 @@ public class CostumeStatisticDAO extends DAO {
 
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                CostumeStatistic costumeStatistic = new CostumeStatistic();
-                costumeStatistic.setId(rs.getInt("id"));
-                costumeStatistic.setName(rs.getString("name"));
-                costumeStatistic.setType(rs.getString("type"));
-                costumeStatistic.setCategory(rs.getString("category"));
-                costumeStatistic.setTotalRentalTimes(rs.getInt("totalRentalTimes"));
-                costumeStatistic.setTotalRevenue(rs.getFloat("totalRevenue"));
-                result.add(costumeStatistic);
+                CostumeStatistic cs = new CostumeStatistic();
+                cs.setId(rs.getInt("id"));
+                cs.setName(rs.getString("name"));
+                cs.setType(rs.getString("type"));
+                cs.setCategory(rs.getString("category"));
+                cs.setTotalRentalTimes(rs.getInt("totalRentalTimes"));
+                cs.setTotalRevenue(rs.getFloat("totalRevenue"));
+                result.add(cs);
             }
-
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return result;

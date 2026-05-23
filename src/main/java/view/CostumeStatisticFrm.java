@@ -32,7 +32,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
     private final User user;
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private List<CostumeStatistic> costumeStatistics = new ArrayList<>();
+    private List<CostumeStatistic> listCostume = new ArrayList<>();
     private java.util.Date currentStartDate;
     private java.util.Date currentEndDate;
 
@@ -174,11 +174,11 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         CostumeStatisticDAO costumeStatisticDAO = new CostumeStatisticDAO();
         currentStartDate = startDate;
         currentEndDate = endDate;
-        costumeStatistics = costumeStatisticDAO.getCostumeStatistic(startDate, endDate);
-        showCostumeStatistics(costumeStatistics);
+        listCostume = costumeStatisticDAO.getCostumeStatistic(startDate, endDate);
+        showCostumeStatistics(listCostume);
         updateStatisticTitle(startLocalDate, endLocalDate);
 
-        if (costumeStatistics.isEmpty()) {
+        if (listCostume.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Không có dữ liệu thống kê trong khoảng thời gian đã chọn.");
         }
     }//GEN-LAST:event_btnSearchActionPerformed
@@ -215,19 +215,19 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         return valid;
     }
 
-    private void showCostumeStatistics(List<CostumeStatistic> costumeStatistics) {
+    private void showCostumeStatistics(List<CostumeStatistic> listCostume) {
         DefaultTableModel tableModel = (DefaultTableModel) tblCostumeStat.getModel();
         tableModel.setRowCount(0);
-        for (int i = 0; i < costumeStatistics.size(); i++) {
-            CostumeStatistic costumeStatistic = costumeStatistics.get(i);
+        for (int i = 0; i < listCostume.size(); i++) {
+            CostumeStatistic cs = listCostume.get(i);
             tableModel.addRow(new Object[]{
                     i + 1,
-                    costumeStatistic.getId(),
-                    costumeStatistic.getName(),
-                    costumeStatistic.getType(),
-                    costumeStatistic.getCategory(),
-                    costumeStatistic.getTotalRentalTimes(),
-                    currencyFormat.format(costumeStatistic.getTotalRevenue())
+                    cs.getId(),
+                    cs.getName(),
+                    cs.getType(),
+                    cs.getCategory(),
+                    cs.getTotalRentalTimes(),
+                    currencyFormat.format(cs.getTotalRevenue())
             });
         }
     }
@@ -270,13 +270,13 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         }
 
         int modelRow = tblCostumeStat.convertRowIndexToModel(selectedRow);
-        if (modelRow < 0 || modelRow >= costumeStatistics.size()) {
+        if (modelRow < 0 || modelRow >= listCostume.size()) {
             return;
         }
 
         RentalBillStatisticFrm rentalBillStatisticFrm = new RentalBillStatisticFrm(
                 user,
-                costumeStatistics.get(modelRow),
+                listCostume.get(modelRow),
                 currentStartDate,
                 currentEndDate,
                 createSearchState()
@@ -297,13 +297,13 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
 
         txtStartDate.setDate(startLocalDate);
         txtEndDate.setDate(endLocalDate);
-        costumeStatistics = new ArrayList<>(searchState.getCostumeStatistics());
-        showCostumeStatistics(costumeStatistics);
+        listCostume = new ArrayList<>(searchState.getCostumeStatistics());
+        showCostumeStatistics(listCostume);
         updateStatisticTitle(startLocalDate, endLocalDate);
     }
 
     private CostumeStatisticSearchState createSearchState() {
-        return new CostumeStatisticSearchState(currentStartDate, currentEndDate, costumeStatistics);
+        return new CostumeStatisticSearchState(currentStartDate, currentEndDate, listCostume);
     }
 
     /**

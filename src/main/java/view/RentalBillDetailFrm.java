@@ -4,8 +4,6 @@
  */
 package view;
 
-import dao.RentalBillDAO;
-import dao.ReturnedCostumeDAO;
 import model.Collateral;
 import model.Costume;
 import model.CostumeStatistic;
@@ -21,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -32,7 +29,6 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(RentalBillDetailFrm.class.getName());
     private User user;
-    private int rentalBillId;
     private Date startDate;
     private Date endDate;
     private CostumeStatistic costumeStatistic;
@@ -53,17 +49,8 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
 
     public RentalBillDetailFrm(
             User user,
-            int rentalBillId,
-            Date startDate,
-            Date endDate,
-            CostumeStatistic costumeStatistic
-    ) {
-        this(user, rentalBillId, startDate, endDate, costumeStatistic, null);
-    }
-
-    public RentalBillDetailFrm(
-            User user,
-            int rentalBillId,
+            RentalBill rentalBill,
+            List<ReturnedCostume> returnedCostumes,
             Date startDate,
             Date endDate,
             CostumeStatistic costumeStatistic,
@@ -71,12 +58,13 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
     ) {
         this();
         this.user = user;
-        this.rentalBillId = rentalBillId;
+        this.rentalBill = rentalBill;
+        this.returnedCostumes = returnedCostumes == null ? new ArrayList<>() : returnedCostumes;
         this.startDate = startDate;
         this.endDate = endDate;
         this.costumeStatistic = costumeStatistic;
         this.costumeStatisticSearchState = costumeStatisticSearchState;
-        loadRentalBillDetail();
+        showRentalBillDetail();
     }
 
     /**
@@ -263,16 +251,10 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private void loadRentalBillDetail() {
-        RentalBillDAO rentalBillDAO = new RentalBillDAO();
-        rentalBill = rentalBillDAO.getRentalBillDetail(rentalBillId);
+    private void showRentalBillDetail() {
         if (rentalBill == null) {
-            JOptionPane.showMessageDialog(this, "Không tìm thấy thông tin phiếu mượn.");
             return;
         }
-
-        ReturnedCostumeDAO returnedCostumeDAO = new ReturnedCostumeDAO();
-        returnedCostumes = returnedCostumeDAO.getReturnedCostumesByRentalBill(rentalBillId, startDate, endDate);
 
         showRentalBillInfo();
         showReturnedCostumes();

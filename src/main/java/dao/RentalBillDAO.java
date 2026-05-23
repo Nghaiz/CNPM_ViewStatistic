@@ -25,15 +25,19 @@ public class RentalBillDAO extends DAO {
                 SELECT rb.id, rb.createdAt, rb.saleoff, rb.note,
                     c.id AS clientId, c.fullname AS clientName,
                     u.id AS sellerId, u.fullname AS sellerName,
-                    SUM(charged.quantity) AS totalQuantity,
-                    SUM(charged.amount) AS totalRevenue
-                FROM (
+                    SUM(CASE WHEN charged.rentalDays > 0 THEN charged.quantity ELSE 0 END) AS totalQuantity,
+                    SUM(charged.rentalDays * charged.rentalPrice * charged.quantity) AS totalRevenue
+                FROM tblRentalBill rb
+                INNER JOIN tblClient c ON c.id = rb.clientId
+                INNER JOIN tblUser u ON u.id = rb.userId
+                INNER JOIN (
                     SELECT rc.rentalBillId,
                         ret.returnedQuantity AS quantity,
+                        rc.rentalPrice,
                         GREATEST(DATEDIFF(
                             LEAST(DATE(rtb.returnedAt), DATE(?)),
                             GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) * rc.rentalPrice * ret.returnedQuantity AS amount
+                        ) + 1, 0) AS rentalDays
                     FROM tblRentedCostume rc
                     INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
                     INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
@@ -44,25 +48,21 @@ public class RentalBillDAO extends DAO {
                     UNION ALL
 
                     SELECT rc.rentalBillId,
-                        rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) AS quantity,
+                        rc.rentalQuantity - IFNULL(SUM(ret.returnedQuantity), 0) AS quantity,
+                        rc.rentalPrice,
                         GREATEST(DATEDIFF(
                             DATE(?),
                             GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) * rc.rentalPrice * (rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0)) AS amount
+                        ) + 1, 0) AS rentalDays
                     FROM tblRentedCostume rc
-                    LEFT JOIN (
-                        SELECT rentedCostumeId, SUM(returnedQuantity) AS totalReturnedQuantity
-                        FROM tblReturnedCostume
-                        GROUP BY rentedCostumeId
-                    ) returned ON returned.rentedCostumeId = rc.id
+                    LEFT JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
                     WHERE rc.costumeId = ?
-                        AND rc.rentalQuantity - IFNULL(returned.totalReturnedQuantity, 0) > 0
                         AND DATE(rc.rentedAt) <= DATE(?)
-                ) charged
-                INNER JOIN tblRentalBill rb ON rb.id = charged.rentalBillId
-                INNER JOIN tblClient c ON c.id = rb.clientId
-                INNER JOIN tblUser u ON u.id = rb.userId
-                WHERE charged.amount > 0
+                    GROUP BY rc.id, rc.rentalBillId, rc.rentalQuantity, rc.rentalPrice, rc.rentedAt
+                    HAVING quantity > 0
+                ) charged ON charged.rentalBillId = rb.id
+                WHERE charged.rentalDays > 0
+                    AND charged.quantity > 0
                 GROUP BY rb.id, rb.createdAt, rb.saleoff, rb.note, c.id, c.fullname, u.id, u.fullname
                 ORDER BY totalRevenue DESC, rb.createdAt ASC, rb.id ASC
                 """;
@@ -87,38 +87,13 @@ public class RentalBillDAO extends DAO {
                 RentalBill rentalBill = mapRentalBillSummary(rs);
                 rentalBill.setTotalQuantity(rs.getInt("totalQuantity"));
                 rentalBill.setTotalRevenue(rs.getFloat("totalRevenue"));
+                rentalBill.setListRentalCollateral(getRentalCollaterals(rentalBill.getId()));
                 result.add(rentalBill);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return result;
-    }
-
-    public RentalBill getRentalBillDetail(int rentalBillId) {
-        String sql = """
-                SELECT rb.id, rb.createdAt, rb.saleoff, rb.note,
-                    c.id AS clientId, c.fullname AS clientName, c.address, c.tel, c.email, c.note AS clientNote,
-                    u.id AS sellerId, u.username, u.fullname AS sellerName, u.role
-                FROM tblRentalBill rb
-                INNER JOIN tblClient c ON c.id = rb.clientId
-                INNER JOIN tblUser u ON u.id = rb.userId
-                WHERE rb.id = ?
-                """;
-
-        try {
-            PreparedStatement ps = con.prepareStatement(sql);
-            ps.setInt(1, rentalBillId);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                RentalBill rentalBill = mapRentalBillDetail(rs);
-                rentalBill.setListRentalCollateral(getRentalCollaterals(rentalBillId));
-                return rentalBill;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 
     private List<RentalCollateral> getRentalCollaterals(int rentalBillId) {
@@ -172,21 +147,6 @@ public class RentalBillDAO extends DAO {
         seller.setId(rs.getInt("sellerId"));
         seller.setFullName(rs.getString("sellerName"));
         rentalBill.setSeller(seller);
-        return rentalBill;
-    }
-
-    private RentalBill mapRentalBillDetail(ResultSet rs) throws java.sql.SQLException {
-        RentalBill rentalBill = mapRentalBillSummary(rs);
-
-        Client client = rentalBill.getClient();
-        client.setAddress(rs.getString("address"));
-        client.setTel(rs.getString("tel"));
-        client.setEmail(rs.getString("email"));
-        client.setNote(rs.getString("clientNote"));
-
-        User seller = rentalBill.getSeller();
-        seller.setUsername(rs.getString("username"));
-        seller.setRole(rs.getString("role"));
         return rentalBill;
     }
 
