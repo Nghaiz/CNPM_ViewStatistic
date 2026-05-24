@@ -24,14 +24,14 @@ public class CostumeStatisticDAO extends DAO {
                         ret.returnedQuantity AS quantity,
                         rc.rentalPrice,
                         GREATEST(DATEDIFF(
-                            LEAST(DATE(rtb.returnedAt), DATE(?)),
+                            LEAST(DATE(rb.returnedAt), DATE(?)),
                             GREATEST(DATE(rc.rentedAt), DATE(?))
                         ) + 1, 0) AS rentalDays
                     FROM tblRentedCostume rc
                     INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
-                    INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
+                    INNER JOIN tblReturnBill rb ON rb.id = ret.returnBillId
                     WHERE DATE(rc.rentedAt) <= DATE(?)
-                        AND DATE(rtb.returnedAt) >= DATE(?)
+                        AND DATE(rb.returnedAt) >= DATE(?)
 
                     UNION ALL
 

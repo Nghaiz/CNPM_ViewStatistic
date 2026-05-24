@@ -29,9 +29,9 @@ import model.User;
 public class CostumeStatisticFrm extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CostumeStatisticFrm.class.getName());
-    private final User user;
-    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private User user;
+    private NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+    private DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private List<CostumeStatistic> listCostume = new ArrayList<>();
     private java.util.Date startDate;
     private java.util.Date endDate;
@@ -43,6 +43,7 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         initComponents();
         this.user = user;
         this.setLocationRelativeTo(null);
+
         configureDatePickers();
         lblErrorStartDate.setForeground(Color.RED);
         lblErrorEndDate.setForeground(Color.RED);
@@ -194,15 +195,9 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
         if (startDateText.isEmpty()) {
             lblErrorStartDate.setText("Vui lòng chọn ngày bắt đầu");
             valid = false;
-        } else if (startDate == null || !txtStartDate.isTextFieldValid()) {
-            lblErrorStartDate.setText("Ngày bắt đầu phải có dạng dd/MM/yyyy");
-            valid = false;
         }
         if (endDateText.isEmpty()) {
             lblErrorEndDate.setText("Vui lòng chọn ngày kết thúc");
-            valid = false;
-        } else if (endDate == null || !txtEndDate.isTextFieldValid()) {
-            lblErrorEndDate.setText("Ngày kết thúc phải có dạng dd/MM/yyyy");
             valid = false;
         }
         if (valid && startDate.isAfter(endDate)) {
@@ -303,31 +298,6 @@ public class CostumeStatisticFrm extends javax.swing.JFrame {
     private CostumeStatisticSearchState createSearchState() {
         return new CostumeStatisticSearchState(startDate, endDate, listCostume);
     }
-
-    /**
-     * @param args the command line arguments
-     */
-//    public static void main(String args[]) {
-//        /* Set the Nimbus look and feel */
-//        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-//        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-//         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html
-//         */
-//        try {
-//            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-//                if ("Nimbus".equals(info.getName())) {
-//                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-//                    break;
-//                }
-//            }
-//        } catch (ReflectiveOperationException | javax.swing.UnsupportedLookAndFeelException ex) {
-//            logger.log(java.util.logging.Level.SEVERE, null, ex);
-//        }
-//        //</editor-fold>
-//
-//        /* Create and display the form */
-//        java.awt.EventQueue.invokeLater(() -> new CostumeStatisticFrm().setVisible(true));
-//    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnSearch;

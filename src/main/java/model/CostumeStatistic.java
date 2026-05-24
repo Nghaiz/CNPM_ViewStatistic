@@ -8,8 +8,7 @@ public class CostumeStatistic extends Costume {
         super();
     }
 
-    public CostumeStatistic(int id, String name, String type, String category, String description, float price,
-                            int totalRentalTimes, float totalRevenue) {
+    public CostumeStatistic(int id, String name, String type, String category, String description, float price, int totalRentalTimes, float totalRevenue) {
         super(id, name, type, category, description, price);
         this.totalRentalTimes = totalRentalTimes;
         this.totalRevenue = totalRevenue;
