@@ -13,8 +13,6 @@ public class RentalBill implements Serializable {
     private User seller;
     private List<RentedCostume> listRentedCostume = new ArrayList<>();
     private List<RentalCollateral> listRentalCollateral = new ArrayList<>();
-    private int totalQuantity;
-    private float totalRevenue;
 
     public RentalBill(){
         super();
@@ -93,21 +91,5 @@ public class RentalBill implements Serializable {
 
     public void setListRentalCollateral(List<RentalCollateral> listRentalCollateral) {
         this.listRentalCollateral = listRentalCollateral;
-    }
-
-    public int getTotalQuantity() {
-        return totalQuantity;
-    }
-
-    public void setTotalQuantity(int totalQuantity) {
-        this.totalQuantity = totalQuantity;
-    }
-
-    public float getTotalRevenue() {
-        return totalRevenue;
-    }
-
-    public void setTotalRevenue(float totalRevenue) {
-        this.totalRevenue = totalRevenue;
     }
 }

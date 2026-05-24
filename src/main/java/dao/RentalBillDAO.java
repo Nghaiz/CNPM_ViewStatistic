@@ -2,8 +2,10 @@ package dao;
 
 import model.Client;
 import model.Collateral;
+import model.Costume;
 import model.RentalBill;
 import model.RentalCollateral;
+import model.RentedCostume;
 import model.User;
 
 import java.sql.Date;
@@ -24,47 +26,32 @@ public class RentalBillDAO extends DAO {
         String sql = """
                 SELECT rb.id, rb.createdAt, rb.saleoff, rb.note,
                     c.id AS clientId, c.fullname AS clientName,
-                    u.id AS sellerId, u.fullname AS sellerName,
-                    SUM(CASE WHEN charged.rentalDays > 0 THEN charged.quantity ELSE 0 END) AS totalQuantity,
-                    SUM(charged.rentalDays * charged.rentalPrice * charged.quantity) AS totalRevenue
+                    u.id AS sellerId, u.fullname AS sellerName
                 FROM tblRentalBill rb
                 INNER JOIN tblClient c ON c.id = rb.clientId
                 INNER JOIN tblUser u ON u.id = rb.userId
-                INNER JOIN (
-                    SELECT rc.rentalBillId,
-                        ret.returnedQuantity AS quantity,
-                        rc.rentalPrice,
-                        GREATEST(DATEDIFF(
-                            LEAST(DATE(rtb.returnedAt), DATE(?)),
-                            GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) AS rentalDays
+                WHERE EXISTS (
+                    SELECT 1
                     FROM tblRentedCostume rc
-                    INNER JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
-                    INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
-                    WHERE rc.costumeId = ?
+                    WHERE rc.rentalBillId = rb.id
+                        AND rc.costumeId = ?
                         AND DATE(rc.rentedAt) <= DATE(?)
-                        AND DATE(rtb.returnedAt) >= DATE(?)
-
-                    UNION ALL
-
-                    SELECT rc.rentalBillId,
-                        rc.rentalQuantity - IFNULL(SUM(ret.returnedQuantity), 0) AS quantity,
-                        rc.rentalPrice,
-                        GREATEST(DATEDIFF(
-                            DATE(?),
-                            GREATEST(DATE(rc.rentedAt), DATE(?))
-                        ) + 1, 0) AS rentalDays
-                    FROM tblRentedCostume rc
-                    LEFT JOIN tblReturnedCostume ret ON ret.rentedCostumeId = rc.id
-                    WHERE rc.costumeId = ?
-                        AND DATE(rc.rentedAt) <= DATE(?)
-                    GROUP BY rc.id, rc.rentalBillId, rc.rentalQuantity, rc.rentalPrice, rc.rentedAt
-                    HAVING quantity > 0
-                ) charged ON charged.rentalBillId = rb.id
-                WHERE charged.rentalDays > 0
-                    AND charged.quantity > 0
-                GROUP BY rb.id, rb.createdAt, rb.saleoff, rb.note, c.id, c.fullname, u.id, u.fullname
-                ORDER BY totalRevenue DESC, rb.createdAt ASC, rb.id ASC
+                        AND (
+                            EXISTS (
+                                SELECT 1
+                                FROM tblReturnedCostume ret
+                                INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
+                                WHERE ret.rentedCostumeId = rc.id
+                                    AND DATE(rtb.returnedAt) >= DATE(?)
+                            )
+                            OR rc.rentalQuantity > (
+                                SELECT IFNULL(SUM(ret2.returnedQuantity), 0)
+                                FROM tblReturnedCostume ret2
+                                WHERE ret2.rentedCostumeId = rc.id
+                            )
+                        )
+                )
+                ORDER BY rb.createdAt ASC, rb.id ASC
                 """;
 
         try {
@@ -72,23 +59,56 @@ public class RentalBillDAO extends DAO {
             Date startSqlDate = new Date(startDate.getTime());
             Date endSqlDate = new Date(endDate.getTime());
 
-            ps.setDate(1, endSqlDate);
-            ps.setDate(2, startSqlDate);
-            ps.setInt(3, costumeId);
-            ps.setDate(4, endSqlDate);
-            ps.setDate(5, startSqlDate);
-            ps.setDate(6, endSqlDate);
-            ps.setDate(7, startSqlDate);
-            ps.setInt(8, costumeId);
-            ps.setDate(9, endSqlDate);
+            ps.setInt(1, costumeId);
+            ps.setDate(2, endSqlDate);
+            ps.setDate(3, startSqlDate);
 
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 RentalBill rentalBill = mapRentalBillSummary(rs);
-                rentalBill.setTotalQuantity(rs.getInt("totalQuantity"));
-                rentalBill.setTotalRevenue(rs.getFloat("totalRevenue"));
+                rentalBill.setListRentedCostume(getRentedCostumes(rentalBill.getId()));
                 rentalBill.setListRentalCollateral(getRentalCollaterals(rentalBill.getId()));
                 result.add(rentalBill);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    private List<RentedCostume> getRentedCostumes(int rentalBillId) {
+        List<RentedCostume> result = new ArrayList<>();
+        String sql = """
+                SELECT rc.id, rc.rentalPrice, rc.rentalQuantity, rc.rentedAt, rc.dateToReturn,
+                    c.id AS costumeId, c.name AS costumeName, c.type AS costumeType,
+                    c.category AS costumeCategory, c.description AS costumeDescription, c.price AS costumePrice
+                FROM tblRentedCostume rc
+                INNER JOIN tblCostume c ON c.id = rc.costumeId
+                WHERE rc.rentalBillId = ?
+                ORDER BY rc.id ASC
+                """;
+
+        try {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setInt(1, rentalBillId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                Costume costume = new Costume();
+                costume.setId(rs.getInt("costumeId"));
+                costume.setName(rs.getString("costumeName"));
+                costume.setType(rs.getString("costumeType"));
+                costume.setCategory(rs.getString("costumeCategory"));
+                costume.setDescription(rs.getString("costumeDescription"));
+                costume.setPrice(rs.getFloat("costumePrice"));
+
+                RentedCostume rentedCostume = new RentedCostume();
+                rentedCostume.setId(rs.getInt("id"));
+                rentedCostume.setRentalPrice(rs.getFloat("rentalPrice"));
+                rentedCostume.setRentalQuantity(rs.getInt("rentalQuantity"));
+                rentedCostume.setRentedAt(toLocalDateTime(rs.getTimestamp("rentedAt")));
+                rentedCostume.setDateToReturn(toLocalDateTime(rs.getTimestamp("dateToReturn")));
+                rentedCostume.setCostume(costume);
+                result.add(rentedCostume);
             }
         } catch (Exception e) {
             e.printStackTrace();

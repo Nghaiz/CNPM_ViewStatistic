@@ -9,7 +9,6 @@ import model.Costume;
 import model.CostumeStatistic;
 import model.RentalBill;
 import model.RentalCollateral;
-import model.RentedCostume;
 import model.ReturnedCostume;
 import model.User;
 
@@ -35,6 +34,7 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
     private CostumeStatisticSearchState costumeStatisticSearchState;
     private RentalBill rentalBill;
     private List<ReturnedCostume> returnedCostumes = new ArrayList<>();
+    private List<Float> returnedCostumeAmounts = new ArrayList<>();
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -51,6 +51,7 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
             User user,
             RentalBill rentalBill,
             List<ReturnedCostume> returnedCostumes,
+            List<Float> returnedCostumeAmounts,
             Date startDate,
             Date endDate,
             CostumeStatistic costumeStatistic,
@@ -60,6 +61,7 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
         this.user = user;
         this.rentalBill = rentalBill;
         this.returnedCostumes = returnedCostumes == null ? new ArrayList<>() : returnedCostumes;
+        this.returnedCostumeAmounts = returnedCostumeAmounts == null ? new ArrayList<>() : returnedCostumeAmounts;
         this.startDate = startDate;
         this.endDate = endDate;
         this.costumeStatistic = costumeStatistic;
@@ -275,26 +277,27 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
         DefaultTableModel tableModel = (DefaultTableModel) jTable1.getModel();
         tableModel.setRowCount(0);
 
-        for (ReturnedCostume returnedCostume : returnedCostumes) {
-            RentedCostume rentedCostume = returnedCostume.getRentedCostume();
-            Costume costume = rentedCostume == null ? null : rentedCostume.getCostume();
+        for (int i = 0; i < returnedCostumes.size(); i++) {
+            ReturnedCostume returnedCostume = returnedCostumes.get(i);
+            Costume costume = returnedCostume.getCostume();
+            float amount = i < returnedCostumeAmounts.size() ? returnedCostumeAmounts.get(i) : 0;
             tableModel.addRow(new Object[]{
                     costume == null ? "" : costume.getId(),
                     costume == null ? "" : costume.getName(),
                     costume == null ? "" : costume.getType(),
                     costume == null ? "" : costume.getCategory(),
                     returnedCostume.getReturnedQuantity(),
-                    rentedCostume == null ? "" : currencyFormat.format(rentedCostume.getRentalPrice()),
-                    rentedCostume == null || rentedCostume.getRentedAt() == null
+                    currencyFormat.format(returnedCostume.getRentalPrice()),
+                    returnedCostume.getRentedAt() == null
                             ? ""
-                            : rentedCostume.getRentedAt().format(dateFormatter),
-                    rentedCostume == null || rentedCostume.getDateToReturn() == null
+                            : returnedCostume.getRentedAt().format(dateFormatter),
+                    returnedCostume.getDateToReturn() == null
                             ? ""
-                            : rentedCostume.getDateToReturn().format(dateFormatter),
+                            : returnedCostume.getDateToReturn().format(dateFormatter),
                     returnedCostume.getReturnedAt() == null
                             ? "Chưa trả"
                             : returnedCostume.getReturnedAt().format(dateFormatter),
-                    currencyFormat.format(returnedCostume.getTotalAmount())
+                    currencyFormat.format(amount)
             });
         }
     }
@@ -318,9 +321,10 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
     private void showTotals() {
         int totalQuantity = 0;
         float totalAmount = 0;
-        for (ReturnedCostume returnedCostume : returnedCostumes) {
+        for (int i = 0; i < returnedCostumes.size(); i++) {
+            ReturnedCostume returnedCostume = returnedCostumes.get(i);
             totalQuantity += returnedCostume.getReturnedQuantity();
-            totalAmount += returnedCostume.getTotalAmount();
+            totalAmount += i < returnedCostumeAmounts.size() ? returnedCostumeAmounts.get(i) : 0;
         }
         jLabel14.setText(String.valueOf(totalQuantity));
         jLabel16.setText(currencyFormat.format(totalAmount));
@@ -338,31 +342,6 @@ public class RentalBillDetailFrm extends javax.swing.JFrame {
             rentalBillStatisticFrm.setVisible(true);
         }
         this.dispose();
-    }
-
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (ReflectiveOperationException | javax.swing.UnsupportedLookAndFeelException ex) {
-            logger.log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
-
-        /* Create and display the form */
-        java.awt.EventQueue.invokeLater(() -> new RentalBillDetailFrm().setVisible(true));
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables

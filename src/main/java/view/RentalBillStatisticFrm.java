@@ -14,8 +14,12 @@ import model.User;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +41,7 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
     private CostumeStatisticSearchState costumeStatisticSearchState;
     private List<RentalBill> rentalBills = new ArrayList<>();
     private List<List<ReturnedCostume>> returnedCostumesByBill = new ArrayList<>();
+    private List<RentalBillStatistic> rentalBillStatistics = new ArrayList<>();
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -172,6 +177,8 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         rentalBills = rentalBillDAO.getBillDetailByCostume(costumeStatistic.getId(), startDate, endDate);
         ReturnedCostumeDAO returnedCostumeDAO = new ReturnedCostumeDAO();
         returnedCostumesByBill = returnedCostumeDAO.getReturnedCostume(rentalBills, startDate, endDate);
+        calculateRentalBillTotals();
+        sortRentalBillStatistics();
         showRentalBills();
 
         if (rentalBills.isEmpty()) {
@@ -182,15 +189,16 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
     private void showRentalBills() {
         DefaultTableModel tableModel = (DefaultTableModel) jTable1.getModel();
         tableModel.setRowCount(0);
-        for (int i = 0; i < rentalBills.size(); i++) {
-            RentalBill rentalBill = rentalBills.get(i);
+        for (int i = 0; i < rentalBillStatistics.size(); i++) {
+            RentalBillStatistic statistic = rentalBillStatistics.get(i);
+            RentalBill rentalBill = statistic.rentalBill;
             tableModel.addRow(new Object[]{
                     i + 1,
                     rentalBill.getId(),
                     rentalBill.getClient() == null ? "" : rentalBill.getClient().getFullname(),
-                    rentalBill.getTotalQuantity(),
+                    statistic.totalQuantity,
                     rentalBill.getCreatedAt() == null ? "" : rentalBill.getCreatedAt().format(dateFormatter),
-                    currencyFormat.format(rentalBill.getTotalRevenue())
+                    currencyFormat.format(statistic.totalRevenue)
             });
         }
     }
@@ -213,17 +221,16 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         }
 
         int modelRow = jTable1.convertRowIndexToModel(selectedRow);
-        if (modelRow < 0 || modelRow >= rentalBills.size()) {
+        if (modelRow < 0 || modelRow >= rentalBillStatistics.size()) {
             return;
         }
 
-        List<ReturnedCostume> returnedCostumes = modelRow < returnedCostumesByBill.size()
-                ? returnedCostumesByBill.get(modelRow)
-                : new ArrayList<>();
+        RentalBillStatistic statistic = rentalBillStatistics.get(modelRow);
         RentalBillDetailFrm rentalBillDetailFrm = new RentalBillDetailFrm(
                 user,
-                rentalBills.get(modelRow),
-                returnedCostumes,
+                statistic.rentalBill,
+                statistic.returnedCostumes,
+                statistic.returnedCostumeAmounts,
                 startDate,
                 endDate,
                 costumeStatistic,
@@ -231,6 +238,78 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         );
         rentalBillDetailFrm.setVisible(true);
         this.dispose();
+    }
+
+    private void calculateRentalBillTotals() {
+        rentalBillStatistics = new ArrayList<>();
+
+        for (int i = 0; i < rentalBills.size(); i++) {
+            List<ReturnedCostume> returnedCostumes = i < returnedCostumesByBill.size()
+                    ? returnedCostumesByBill.get(i)
+                    : new ArrayList<>();
+            List<Float> amounts = new ArrayList<>();
+            int totalQuantity = 0;
+            float totalRevenue = 0;
+            for (ReturnedCostume returnedCostume : returnedCostumes) {
+                float amount = calculateAmount(returnedCostume);
+                amounts.add(amount);
+                if (isSelectedCostume(returnedCostume)) {
+                    totalQuantity += returnedCostume.getReturnedQuantity();
+                    totalRevenue += amount;
+                }
+            }
+            rentalBillStatistics.add(new RentalBillStatistic(
+                    rentalBills.get(i),
+                    returnedCostumes,
+                    amounts,
+                    totalQuantity,
+                    totalRevenue
+            ));
+        }
+    }
+
+    private void sortRentalBillStatistics() {
+        Collections.sort(rentalBillStatistics);
+    }
+
+    private float calculateAmount(ReturnedCostume returnedCostume) {
+        if (returnedCostume == null || returnedCostume.getRentalPrice() <= 0 || returnedCostume.getReturnedQuantity() <= 0) {
+            return 0;
+        }
+        return returnedCostume.getRentalPrice()
+                * returnedCostume.getReturnedQuantity()
+                * countOverlapDays(returnedCostume);
+    }
+
+    private long countOverlapDays(ReturnedCostume returnedCostume) {
+        if (returnedCostume.getRentedAt() == null || startDate == null || endDate == null) {
+            return 0;
+        }
+
+        LocalDate startLocalDate = startDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endLocalDate = endDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        if (startLocalDate.isAfter(endLocalDate)) {
+            return 0;
+        }
+
+        LocalDate rentedAt = returnedCostume.getRentedAt().toLocalDate();
+        LocalDate returnedAt = returnedCostume.getReturnedAt() == null
+                ? endLocalDate
+                : returnedCostume.getReturnedAt().toLocalDate();
+        LocalDate fromDate = rentedAt.isAfter(startLocalDate) ? rentedAt : startLocalDate;
+        LocalDate toDate = returnedAt.isBefore(endLocalDate) ? returnedAt : endLocalDate;
+
+        if (fromDate.isAfter(toDate)) {
+            return 0;
+        }
+        return ChronoUnit.DAYS.between(fromDate, toDate) + 1;
+    }
+
+    private boolean isSelectedCostume(ReturnedCostume returnedCostume) {
+        return costumeStatistic != null
+                && returnedCostume != null
+                && returnedCostume.getCostume() != null
+                && returnedCostume.getCostume().getId() == costumeStatistic.getId();
     }
 
     private void btnBackActionPerformed(java.awt.event.ActionEvent evt) {
@@ -252,29 +331,35 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         jScrollPane1.repaint();
     }
 
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (ReflectiveOperationException | javax.swing.UnsupportedLookAndFeelException ex) {
-            logger.log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
+    private static class RentalBillStatistic implements Comparable<RentalBillStatistic> {
+        private final RentalBill rentalBill;
+        private final List<ReturnedCostume> returnedCostumes;
+        private final List<Float> returnedCostumeAmounts;
+        private final int totalQuantity;
+        private final float totalRevenue;
 
-        /* Create and display the form */
-        java.awt.EventQueue.invokeLater(() -> new RentalBillStatisticFrm().setVisible(true));
+        private RentalBillStatistic(
+                RentalBill rentalBill,
+                List<ReturnedCostume> returnedCostumes,
+                List<Float> returnedCostumeAmounts,
+                int totalQuantity,
+                float totalRevenue
+        ) {
+            this.rentalBill = rentalBill;
+            this.returnedCostumes = returnedCostumes;
+            this.returnedCostumeAmounts = returnedCostumeAmounts;
+            this.totalQuantity = totalQuantity;
+            this.totalRevenue = totalRevenue;
+        }
+
+        @Override
+        public int compareTo(RentalBillStatistic other) {
+            int quantityCompare = Integer.compare(other.totalQuantity, totalQuantity);
+            if (quantityCompare != 0) {
+                return quantityCompare;
+            }
+            return Float.compare(other.totalRevenue, totalRevenue);
+        }
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
