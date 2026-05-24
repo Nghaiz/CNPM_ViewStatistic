@@ -39,8 +39,10 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
     private Date startDate;
     private Date endDate;
     private CostumeStatisticSearchState costumeStatisticSearchState;
+
     private List<RentalBill> rentalBills = new ArrayList<>();
     private List<List<ReturnedCostume>> returnedCostumesByBill = new ArrayList<>();
+
     private List<RentalBillStatistic> rentalBillStatistics = new ArrayList<>();
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -66,7 +68,31 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         this.startDate = startDate;
         this.endDate = endDate;
         this.costumeStatisticSearchState = costumeStatisticSearchState;
+
         loadRentalBills();
+    }
+
+    private static class RentalBillStatistic implements Comparable<RentalBillStatistic> {
+        private RentalBill rentalBill;
+        private List<ReturnedCostume> returnedCostumes;
+        private List<Float> returnedCostumeAmounts;
+        private int totalQuantity;
+        private float totalRevenue;
+
+        private RentalBillStatistic(RentalBill rentalBill, List<ReturnedCostume> returnedCostumes, List<Float> returnedCostumeAmounts, int totalQuantity, float totalRevenue) {
+            this.rentalBill = rentalBill;
+            this.returnedCostumes = returnedCostumes;
+            this.returnedCostumeAmounts = returnedCostumeAmounts;
+            this.totalQuantity = totalQuantity;
+            this.totalRevenue = totalRevenue;
+        }
+
+        @Override
+        public int compareTo(RentalBillStatistic other) {
+            int cmp = Integer.compare(other.totalQuantity, totalQuantity);
+            if (cmp != 0) return cmp;
+            return Float.compare(other.totalRevenue, totalRevenue);
+        }
     }
 
     /**
@@ -177,8 +203,9 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         rentalBills = rentalBillDAO.getBillDetailByCostume(costumeStatistic.getId(), startDate, endDate);
         ReturnedCostumeDAO returnedCostumeDAO = new ReturnedCostumeDAO();
         returnedCostumesByBill = returnedCostumeDAO.getReturnedCostume(rentalBills, startDate, endDate);
+
         calculateRentalBillTotals();
-        sortRentalBillStatistics();
+        Collections.sort(rentalBillStatistics);
         showRentalBills();
 
         if (rentalBills.isEmpty()) {
@@ -195,9 +222,9 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
             tableModel.addRow(new Object[]{
                     i + 1,
                     rentalBill.getId(),
-                    rentalBill.getClient() == null ? "" : rentalBill.getClient().getFullname(),
+                    rentalBill.getClient().getFullname(),
                     statistic.totalQuantity,
-                    rentalBill.getCreatedAt() == null ? "" : rentalBill.getCreatedAt().format(dateFormatter),
+                    rentalBill.getCreatedAt().format(dateFormatter),
                     currencyFormat.format(statistic.totalRevenue)
             });
         }
@@ -268,17 +295,11 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
         }
     }
 
-    private void sortRentalBillStatistics() {
-        Collections.sort(rentalBillStatistics);
-    }
-
     private float calculateAmount(ReturnedCostume returnedCostume) {
         if (returnedCostume == null || returnedCostume.getRentalPrice() <= 0 || returnedCostume.getReturnedQuantity() <= 0) {
             return 0;
         }
-        return returnedCostume.getRentalPrice()
-                * returnedCostume.getReturnedQuantity()
-                * countOverlapDays(returnedCostume);
+        return returnedCostume.getRentalPrice() * returnedCostume.getReturnedQuantity() * countOverlapDays(returnedCostume);
     }
 
     private long countOverlapDays(ReturnedCostume returnedCostume) {
@@ -313,12 +334,8 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
     }
 
     private void btnBackActionPerformed(java.awt.event.ActionEvent evt) {
-        if (user != null) {
-            CostumeStatisticFrm costumeStatisticFrm = costumeStatisticSearchState == null
-                    ? new CostumeStatisticFrm(user)
-                    : new CostumeStatisticFrm(user, costumeStatisticSearchState);
-            costumeStatisticFrm.setVisible(true);
-        }
+        CostumeStatisticFrm costumeStatisticFrm = new CostumeStatisticFrm(user, costumeStatisticSearchState);
+        costumeStatisticFrm.setVisible(true);
         this.dispose();
     }
 
@@ -329,37 +346,6 @@ public class RentalBillStatisticFrm extends javax.swing.JFrame {
                 + endDate.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(dateFormatter);
         jScrollPane1.setBorder(BorderFactory.createTitledBorder(BorderFactory.createTitledBorder(""), title));
         jScrollPane1.repaint();
-    }
-
-    private static class RentalBillStatistic implements Comparable<RentalBillStatistic> {
-        private final RentalBill rentalBill;
-        private final List<ReturnedCostume> returnedCostumes;
-        private final List<Float> returnedCostumeAmounts;
-        private final int totalQuantity;
-        private final float totalRevenue;
-
-        private RentalBillStatistic(
-                RentalBill rentalBill,
-                List<ReturnedCostume> returnedCostumes,
-                List<Float> returnedCostumeAmounts,
-                int totalQuantity,
-                float totalRevenue
-        ) {
-            this.rentalBill = rentalBill;
-            this.returnedCostumes = returnedCostumes;
-            this.returnedCostumeAmounts = returnedCostumeAmounts;
-            this.totalQuantity = totalQuantity;
-            this.totalRevenue = totalRevenue;
-        }
-
-        @Override
-        public int compareTo(RentalBillStatistic other) {
-            int quantityCompare = Integer.compare(other.totalQuantity, totalQuantity);
-            if (quantityCompare != 0) {
-                return quantityCompare;
-            }
-            return Float.compare(other.totalRevenue, totalRevenue);
-        }
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables

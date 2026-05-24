@@ -16,29 +16,19 @@ public class ReturnedCostumeDAO extends DAO {
         super();
     }
 
-    public List<List<ReturnedCostume>> getReturnedCostume(
-            List<RentalBill> listRentalBill,
-            java.util.Date startDate,
-            java.util.Date endDate
-    ) {
+    public List<List<ReturnedCostume>> getReturnedCostume(List<RentalBill> listRentalBill, java.util.Date startDate, java.util.Date endDate) {
         List<List<ReturnedCostume>> result = new ArrayList<>();
         if (listRentalBill == null) {
             return result;
         }
 
         for (RentalBill rentalBill : listRentalBill) {
-            result.add(rentalBill == null
-                    ? new ArrayList<>()
-                    : getReturnedCostumeByRentalBill(rentalBill, startDate, endDate));
+            result.add(rentalBill == null ? new ArrayList<>() : getReturnedCostumeByRentalBill(rentalBill, startDate, endDate));
         }
         return result;
     }
 
-    private List<ReturnedCostume> getReturnedCostumeByRentalBill(
-            RentalBill rentalBill,
-            java.util.Date startDate,
-            java.util.Date endDate
-    ) {
+    private List<ReturnedCostume> getReturnedCostumeByRentalBill(RentalBill rentalBill, java.util.Date startDate, java.util.Date endDate) {
         List<ReturnedCostume> result = new ArrayList<>();
         for (RentedCostume rentedCostume : rentalBill.getListRentedCostume()) {
             result.addAll(getReturnedCostumesByRentedCostume(rentedCostume, startDate, endDate));
@@ -46,16 +36,15 @@ public class ReturnedCostumeDAO extends DAO {
         return result;
     }
 
-    private List<ReturnedCostume> getReturnedCostumesByRentedCostume(
-            RentedCostume rentedCostume,
-            java.util.Date startDate,
-            java.util.Date endDate
-    ) {
+    private List<ReturnedCostume> getReturnedCostumesByRentedCostume(RentedCostume rentedCostume, java.util.Date startDate, java.util.Date endDate) {
         List<ReturnedCostume> result = new ArrayList<>();
         int totalReturnedQuantity = 0;
         String sql = """
                 SELECT ret.id, ret.returnedQuantity, rtb.returnedAt,
-                    CASE WHEN DATE(?) <= DATE(?) AND DATE(rtb.returnedAt) >= DATE(?) THEN 1 ELSE 0 END AS isCharged
+                    CASE 
+                        WHEN DATE(?) <= DATE(?) AND DATE(rtb.returnedAt) >= DATE(?) THEN 1
+                        ELSE 0
+                    END AS isCharged
                 FROM tblReturnedCostume ret
                 INNER JOIN tblReturnBill rtb ON rtb.id = ret.returnBillId
                 WHERE ret.rentedCostumeId = ?
@@ -68,7 +57,9 @@ public class ReturnedCostumeDAO extends DAO {
             ps.setDate(2, toSqlDate(endDate));
             ps.setDate(3, toSqlDate(startDate));
             ps.setInt(4, rentedCostume.getId());
+
             ResultSet rs = ps.executeQuery();
+
             while (rs.next()) {
                 int returnedQuantity = rs.getInt("returnedQuantity");
                 totalReturnedQuantity += returnedQuantity;
@@ -87,11 +78,7 @@ public class ReturnedCostumeDAO extends DAO {
         return result;
     }
 
-    private ReturnedCostume mapReturnedCostume(
-            ResultSet rs,
-            RentedCostume rentedCostume,
-            int returnedQuantity
-    ) throws java.sql.SQLException {
+    private ReturnedCostume mapReturnedCostume(ResultSet rs, RentedCostume rentedCostume, int returnedQuantity) throws java.sql.SQLException {
         ReturnedCostume returnedCostume = createReturnedCostume(rentedCostume, returnedQuantity);
         returnedCostume.setId(rs.getInt("id"));
         returnedCostume.setReturnedAt(toLocalDateTime(rs.getTimestamp("returnedAt")));
